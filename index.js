@@ -8,6 +8,10 @@ const Alert = require('./models/Alert');
 
 const root = async (context) => {
   try {
+    if (!context.event.message) {
+      return;
+    }
+
     context.nextState = { ...context.state };
 
     if (!context.nextState.userId) {
@@ -62,7 +66,7 @@ const root = async (context) => {
 
     switch (context.nextState.state) {
       case 'IDLE': {
-        if (!command) {
+        if (!command || command === '/start') {
           await context.sendText('Please /help to see how to use');
           break;
         }

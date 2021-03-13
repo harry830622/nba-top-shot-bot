@@ -4,11 +4,7 @@ const { Schema } = mongoose;
 
 const userSchema = new Schema(
   {
-    telegramUsername: {
-      type: Schema.Types.String,
-      required: true,
-      unique: true,
-    },
+    telegramUsername: { type: Schema.Types.String },
     telegramChatId: { type: Schema.Types.Number, required: true, unique: true },
     // TODO: Validate if the user of an alert is actually this user
     watchedAlerts: {
