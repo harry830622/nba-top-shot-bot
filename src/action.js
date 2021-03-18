@@ -8,6 +8,53 @@ const Alert = require('./models/Alert');
 
 const logger = require('./logger');
 
+const sendHelp = async (context) => {
+  await context.sendText(
+    `Usage:
+/watch - Send me notifications if the moment I want is below a certain price
+/list - List the moments I am watching right now
+/account - Show my account value
+/stats - Give me some stats
+/abort - Cancel the current operation
+/help - How to use this bot?
+
+FAQs:
+1. How to update the budget of my watched moments?
+Just /watch the same moment again and enter a different price
+2. How to stop watching a certain moment?
+Just /watch the same moment again and set the budget to 0
+`,
+  );
+};
+
+const sendAccount = async (context, { user }) => {
+  const res = await axios.get(
+    `https://momentranks.com/account/${user.nbaTopShotUsername}`,
+  );
+  const $ = cheerio.load(res.data);
+  const data = JSON.parse($('#__NEXT_DATA__').html()).props.pageProps;
+  const { account } = data;
+  await context.sendText(
+    `
+Total Value: $${new Intl.NumberFormat('en-US').format(
+      account.totalValue.toFixed(0),
+    )}
+Lifetime Profit: $${new Intl.NumberFormat('en-US').format(
+      account.profit.toFixed(0),
+    )}
+Number of Moments: ${account.mintCount}
+Average Value of My Moments: $${new Intl.NumberFormat('en-US').format(
+      (account.totalValue / account.mintCount).toFixed(2),
+    )}
+Rank: #${account.rank}
+Percentile: Top ${(100 * account.percentile).toFixed(2)}%
+Total Value Based on Lowest Listings: $${new Intl.NumberFormat('en-US').format(
+      account.floorValue.toFixed(0),
+    )}
+`,
+  );
+};
+
 const root = async (context) => {
   try {
     logger.info(JSON.stringify(context.event));
@@ -74,9 +121,6 @@ const root = async (context) => {
           await context.sendText('Please /help to see how to use');
           break;
         }
-        if (command === '/start') {
-          command = '/help';
-        }
         context.nextState = {
           ...context.nextState,
           state: `${command.slice(1).toUpperCase()}__INIT`,
@@ -89,6 +133,51 @@ const root = async (context) => {
     }
 
     switch (true) {
+      case /HELP__*/.test(context.nextState.state): {
+        switch (context.nextState.state) {
+          case 'HELP__INIT': {
+            await sendHelp(context);
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+
+          default: {
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+        }
+        break;
+      }
+
+      case /START__*/.test(context.nextState.state): {
+        switch (context.nextState.state) {
+          case 'START__INIT': {
+            await context.sendText('Welcome!');
+            await sendHelp(context);
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+
+          default: {
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+        }
+        break;
+      }
+
       case /WATCH__*/.test(context.nextState.state): {
         switch (context.nextState.state) {
           case 'WATCH__INIT': {
@@ -201,6 +290,7 @@ const root = async (context) => {
             };
             break;
           }
+
           default: {
             context.nextState = {
               ...context.nextState,
@@ -253,6 +343,56 @@ const root = async (context) => {
         break;
       }
 
+      case /ACCOUNT__*/.test(context.nextState.state): {
+        switch (context.nextState.state) {
+          case 'ACCOUNT__INIT': {
+            const user = await User.findOne({
+              telegramChatId: context.event.message.chat.id,
+            }).exec();
+            if (!user.nbaTopShotUsername) {
+              await context.sendText("What's your NBA Top Shot username?");
+              context.nextState = {
+                ...context.nextState,
+                state: 'ACCOUNT__WAITING_FOR_NBA_TOP_SHOT_USERNAME',
+              };
+              break;
+            }
+            await sendAccount(context, { user });
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+
+          case 'ACCOUNT__WAITING_FOR_NBA_TOP_SHOT_USERNAME': {
+            const nbaTopShotUsername = context.event.text.trim();
+            const user = await User.findOneAndUpdate(
+              {
+                telegramChatId: context.event.message.chat.id,
+              },
+              { nbaTopShotUsername },
+              { new: true },
+            ).exec();
+            await sendAccount(context, { user });
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+
+          default: {
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+        }
+        break;
+      }
+
       case /STATS__*/.test(context.nextState.state): {
         switch (context.nextState.state) {
           case 'STATS__INIT': {
@@ -265,7 +405,7 @@ const root = async (context) => {
                 const $ = cheerio.load(res.data);
                 const data = JSON.parse($('#__NEXT_DATA__').html()).props
                   .pageProps;
-                return data.marketCap.toFixed(0);
+                return data.marketCap;
               })(),
               (async () => {
                 const res = await axios.get('https://momentranks.com/sales');
@@ -277,9 +417,11 @@ const root = async (context) => {
             ]);
             await context.sendText(
               `Total Market Cap: $${new Intl.NumberFormat('en-US').format(
-                totalMarketCap,
+                totalMarketCap.toFixed(0),
               )}
-Total Volume Today: $${new Intl.NumberFormat('en-US').format(totalVolumeToday)}
+Total Volume Today: $${new Intl.NumberFormat('en-US').format(
+                totalVolumeToday.toFixed(0),
+              )}
 Total Number of Sales Today: ${new Intl.NumberFormat('en-US').format(
                 totalNumSalesToday,
               )}
@@ -306,43 +448,11 @@ Average Price of a Moment Today: $${new Intl.NumberFormat('en-US').format(
         break;
       }
 
-      case /HELP__*/.test(context.nextState.state): {
-        switch (context.nextState.state) {
-          case 'HELP__INIT': {
-            await context.sendText(
-              `Usage:
-/watch - Send me notifications if the moment I want is below a certain price
-/stats - Give me some stats
-/list - List the moments I am watching right now
-/abort - Cancel the current operation
-/help - How to use this bot?
-
-FAQs:
-1. How to update the budget of my watched moments?
-Just /watch the same moment again and enter a different price
-2. How to stop watching a certain moment?
-Just /watch the same moment again and set your budget to 0
-`,
-            );
-            context.nextState = {
-              ...context.nextState,
-              state: 'IDLE',
-            };
-            break;
-          }
-
-          default: {
-            context.nextState = {
-              ...context.nextState,
-              state: 'IDLE',
-            };
-            break;
-          }
-        }
-        break;
-      }
-
       default: {
+        context.nextState = {
+          ...context.nextState,
+          state: 'IDLE',
+        };
         break;
       }
     }

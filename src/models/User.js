@@ -6,6 +6,7 @@ const userSchema = new Schema(
   {
     telegramUsername: { type: Schema.Types.String },
     telegramChatId: { type: Schema.Types.Number, required: true, unique: true },
+    nbaTopShotUsername: { type: Schema.Types.String, unique: true },
     // TODO: Validate if the user of an alert is actually this user
     watchedAlerts: {
       type: [{ type: Schema.Types.ObjectId, ref: 'Alert', require: true }],
