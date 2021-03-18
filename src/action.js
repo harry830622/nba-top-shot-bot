@@ -256,8 +256,38 @@ const root = async (context) => {
       case /STATS__*/.test(context.nextState.state): {
         switch (context.nextState.state) {
           case 'STATS__INIT': {
-            const res = await axios.get('https://momentranks.com/');
-            await context.sendText(`Total Market Cap: ${totalMarketCap}`);
+            const [
+              totalMarketCap,
+              [totalVolumeToday, totalNumSalesToday],
+            ] = await Promise.all([
+              (async () => {
+                const res = await axios.get('https://momentranks.com/');
+                const $ = cheerio.load(res.data);
+                const data = JSON.parse($('#__NEXT_DATA__').html()).props
+                  .pageProps;
+                return data.marketCap.toFixed(0);
+              })(),
+              (async () => {
+                const res = await axios.get('https://momentranks.com/sales');
+                const $ = cheerio.load(res.data);
+                const data = JSON.parse($('#__NEXT_DATA__').html()).props
+                  .pageProps;
+                return [data.salesToday, data.volumeToday];
+              })(),
+            ]);
+            await context.sendText(
+              `Total Market Cap: $${new Intl.NumberFormat('en-US').format(
+                totalMarketCap,
+              )}
+Total Volume Today: $${new Intl.NumberFormat('en-US').format(totalVolumeToday)}
+Total Number of Sales Today: ${new Intl.NumberFormat('en-US').format(
+                totalNumSalesToday,
+              )}
+Average Price of a Moment Today: $${new Intl.NumberFormat('en-US').format(
+                (totalVolumeToday / totalNumSalesToday).toFixed(2),
+              )}
+`,
+            );
             context.nextState = {
               ...context.nextState,
               state: 'IDLE',
@@ -281,9 +311,9 @@ const root = async (context) => {
           case 'HELP__INIT': {
             await context.sendText(
               `Usage:
-/watch - Send notifications if the moment you want is below a certain price
-/stats - Show some stats about NBA Top Shot
-/list - List the moments you are watching right now
+/watch - Send me notifications if the moment I want is below a certain price
+/stats - Give me some stats
+/list - List the moments I am watching right now
 /abort - Cancel the current operation
 /help - How to use this bot?
 
@@ -291,7 +321,8 @@ FAQs:
 1. How to update the budget of my watched moments?
 Just /watch the same moment again and enter a different price
 2. How to stop watching a certain moment?
-Just /watch the same moment again and set your budget to 0`,
+Just /watch the same moment again and set your budget to 0
+`,
             );
             context.nextState = {
               ...context.nextState,

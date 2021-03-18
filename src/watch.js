@@ -156,7 +156,8 @@ ${setName}(Series ${setSeriesNumber})
 #${serialNumber}
 is just listed for *$${price.toFixed(2)}*!
 (which is within your budget ${alert.budget.toFixed(2)})
-Grab it now at ${moment.url}`,
+Grab it now at ${moment.url}
+`,
                     { parseMode: 'markdown' },
                   );
                   logger.info(`Sent notification for alert:${alert._id}`);
