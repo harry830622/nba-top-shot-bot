@@ -7,6 +7,8 @@ const Moment = require('./models/Moment');
 const Alert = require('./models/Alert');
 const User = require('./models/User');
 
+const logger = require('./logger');
+
 require('dotenv').config();
 
 const { MONGODB_URI, FLOW_ACCESS_NODE } = process.env;
@@ -55,7 +57,12 @@ pub fun main(playId: UInt32, setId: UInt32): MomentMeta {
 (async () => {
   const client = getClient('telegram');
 
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useCreateIndex: true,
+    useFindAndModify: true,
+    useUnifiedTopology: true,
+  });
 
   fcl.config().put('accessNode.api', FLOW_ACCESS_NODE);
 
@@ -72,13 +79,12 @@ pub fun main(playId: UInt32, setId: UInt32): MomentMeta {
     lastEndHeight = endHeight;
 
     const evtType = 'A.c1e4f4f4c4257510.Market.MomentListed';
+    logger.info(
+      `Fetching ${evtType} events from block height ${startHeight} to ${endHeight}:`,
+    );
     const listedEvts = await fcl
       .send([fcl.getEvents(evtType, startHeight, endHeight)])
       .then(fcl.decode);
-    console.log(
-      `Retrieved ${evtType} events from ${startHeight} to ${endHeight}:`,
-    );
-    // console.log(listedEvts);
 
     const moments = await Promise.all(
       listedEvts.map((e) =>
@@ -93,7 +99,6 @@ pub fun main(playId: UInt32, setId: UInt32): MomentMeta {
           .then(fcl.decode),
       ),
     );
-    // console.log(moments);
 
     const momentMetas = await Promise.all(
       moments.map((m) =>
@@ -105,7 +110,6 @@ pub fun main(playId: UInt32, setId: UInt32): MomentMeta {
           .then(fcl.decode),
       ),
     );
-    // console.log(momentMetas);
 
     const listings = new Array(listedEvts.length).fill(null).map((_, idx) => ({
       playerName: momentMetas[idx].playMetaData.FullName,
@@ -116,7 +120,7 @@ pub fun main(playId: UInt32, setId: UInt32): MomentMeta {
       serialNumber: moments[idx].serialNumber,
       price: Number(listedEvts[idx].data.price),
     }));
-    console.log(listings);
+    logger.info(JSON.stringify(listings));
 
     await Promise.all(
       listings.map(
@@ -143,6 +147,7 @@ pub fun main(playId: UInt32, setId: UInt32): MomentMeta {
               moment.alerts.map(async (alert) => {
                 if (price <= alert.budget) {
                   const { user } = await alert.populate('user').execPopulate();
+                  logger.info(`Sending notification for alert:${alert._id}...`);
                   await client.sendMessage(
                     user.telegramChatId,
                     `*${playerName}*
@@ -151,9 +156,10 @@ ${setName}(Series ${setSeriesNumber})
 #${serialNumber}
 is just listed for *$${price.toFixed(2)}*!
 (which is within your budget ${alert.budget.toFixed(2)})
-Grab it now at ${moment.url}?serialNumber=${serialNumber}`,
+Grab it now at ${moment.url}`,
                     { parseMode: 'markdown' },
                   );
+                  logger.info(`Sent notification for alert:${alert._id}`);
                 }
               }),
             );

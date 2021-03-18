@@ -1,12 +1,10 @@
 {
   "name": "nba-top-shot-bot",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "nodemon server.js",
-    "lint": "eslint . ",
-    "start": "node server.js",
-    "test": "jest",
+    "dev": "nodemon ./src/server.js",
+    "start": "node ./src/server.js",
     "prepare": "husky install"
   },
   "dependencies": {
@@ -20,7 +18,8 @@
     "koa-bodyparser": "^4.3.0",
     "koa-router": "^10.0.0",
     "mongoose": "^5.11.20",
-    "nodemon": "^2.0.7"
+    "nodemon": "^2.0.7",
+    "winston": "^3.3.3"
   },
   "devDependencies": {
     "@babel/core": "^7.13.10",
