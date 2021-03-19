@@ -43,6 +43,14 @@ Total Value: $${new Intl.NumberFormat('en-US').format(
 Lifetime Profit: $${new Intl.NumberFormat('en-US').format(
       account.profit.toFixed(0),
     )}
+ROI: ${
+      account.totalValue - account.profit > 0
+        ? `${(
+            100 *
+            (account.profit / (account.totalValue - account.profit))
+          ).toFixed(2)}%`
+        : '∞ 🔥'
+    }
 Number of Moments: ${account.mintCount}
 Average Value of My Moments: $${new Intl.NumberFormat('en-US').format(
       (account.totalValue / account.mintCount).toFixed(2),
