@@ -14,7 +14,8 @@ const sendHelp = async (context) => {
 /watch - Send me notifications if the moment I want is below a certain price
 /list - List the moments I am watching right now
 /account - Show my account value
-/stats - Give me some stats
+/status - Check if the site is under maintenance
+/numbers - Give me some stats
 /abort - Cancel the current operation
 /help - How to use this bot?
 
@@ -393,9 +394,57 @@ const root = async (context) => {
         break;
       }
 
-      case /STATS__*/.test(context.nextState.state): {
+      case /STATUS__*/.test(context.nextState.state): {
         switch (context.nextState.state) {
-          case 'STATS__INIT': {
+          case 'STATUS__INIT': {
+            const res = await axios.get('https://status.nbatopshot.com/');
+            const $ = cheerio.load(res.data);
+            const rows = $('.components-section .component-inner-container');
+            const statusByService = Object.fromEntries(
+              rows
+                .text()
+                .split(/[?\n]/)
+                .map((s) => s.trim())
+                .filter((s) => s !== '')
+                .reduce(
+                  (prev, curr, idx, arr) => [
+                    ...prev,
+                    ...(idx % 2 === 1 ? [[arr[idx - 1], curr]] : []),
+                  ],
+                  [],
+                ),
+            );
+            await context.sendText(
+              `${Object.entries(statusByService)
+                .map(
+                  ([service, status]) =>
+                    `${service}: ${status === 'Operational' ? '✅' : '🚧'}`,
+                )
+                .join('\n')}
+See more details at https://status.nbatopshot.com/
+`,
+            );
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+
+          default: {
+            context.nextState = {
+              ...context.nextState,
+              state: 'IDLE',
+            };
+            break;
+          }
+        }
+        break;
+      }
+
+      case /NUMBERS__*/.test(context.nextState.state): {
+        switch (context.nextState.state) {
+          case 'NUMBERS__INIT': {
             const [
               totalMarketCap,
               [totalVolumeToday, totalNumSalesToday],
